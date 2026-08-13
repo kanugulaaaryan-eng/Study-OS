@@ -1,0 +1,1 @@
+{"model": "openai/gpt-oss-120b", "messages": [{"role": "system", "content": "You are an expert educator."}, {"role": "user", "content": "Generate a lesson about supervised learning with JSON structure."}], "max_tokens": 2200}
