@@ -1,0 +1,416 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.8rem;
+  --background: #FAFAFB;
+  --foreground: #2A2540;
+  --card: rgba(255,255,255,0.85);
+  --card-foreground: #2A2540;
+  --popover: rgba(255,255,255,0.95);
+  --popover-foreground: #2A2540;
+  --primary: #6D5DF6;
+  --primary-soft: #E1DCFC;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F0E8F7;
+  --secondary-foreground: #3A3454;
+  --muted: #F5F4FA;
+  --muted-foreground: #75708F;
+  --accent: #C77DB0;
+  --accent-foreground: #FFFFFF;
+  --destructive: #E15B6B;
+  --destructive-foreground: #FFFFFF;
+  --border: rgba(109,93,246,0.12);
+  --input: rgba(255,255,255,0.85);
+  --ring: #6D5DF6;
+  --sidebar: rgba(255,255,255,0.8);
+  --sidebar-foreground: #2A2540;
+  --sidebar-border: rgba(109,93,246,0.10);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--secondary);
+  --sidebar-accent-foreground: var(--secondary-foreground);
+  --sidebar-ring: var(--ring);
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  transition: background-color 240ms ease, color 240ms ease;
+}
+
+* {
+  @apply border-border outline-ring/50;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, fill 180ms ease, stroke 180ms ease;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[type="button"]:not(:disabled),
+[type="submit"]:not(:disabled),
+a[href],
+select:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled) {
+  @apply cursor-pointer;
+}
+
+/* Reusable glass surfaces used by the newer screens. The effect is theme-aware. */
+.studyos-glass .glass,
+.studyos-glass .glass-panel {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--card) 84%, transparent), color-mix(in srgb, var(--card) 58%, transparent));
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    backdrop-filter: blur(16px) saturate(112%);
+    -webkit-backdrop-filter: blur(16px) saturate(112%);
+  }
+  border-color: var(--border);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.studyos-glass .glass-strong {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--card) 92%, transparent), color-mix(in srgb, var(--card) 70%, transparent));
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    backdrop-filter: blur(22px) saturate(118%);
+    -webkit-backdrop-filter: blur(22px) saturate(118%);
+  }
+  border-color: var(--border);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+/* StudyOS glass is part of every theme. There is no separate glassmorphism toggle. */
+.studyos-glass .bg-card,
+.studyos-glass [data-slot="card"],
+.studyos-glass [data-slot="sidebar"],
+.studyos-glass [data-slot="popover-content"],
+.studyos-glass [data-radix-popper-content-wrapper] > *,
+.studyos-glass .glass-panel {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--card) 88%, transparent), color-mix(in srgb, var(--card) 58%, transparent));
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    backdrop-filter: blur(18px) saturate(115%);
+    -webkit-backdrop-filter: blur(18px) saturate(115%);
+  }
+  border-color: var(--border);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.studyos-glass input,
+.studyos-glass textarea,
+.studyos-glass select {
+  background: color-mix(in srgb, var(--input) 82%, transparent);
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}
+
+.studyos-glass .bg-background\/95,
+.studyos-glass .bg-background\/90,
+.studyos-glass .bg-background\/80 {
+  background: color-mix(in srgb, var(--background) 82%, transparent) !important;
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+}
+
+/* Compatibility layer for older generated pages. This removes the old
+   purple/slate look without forcing a rewrite of every component at once. */
+.studyos-glass .bg-slate-950,
+.studyos-glass .bg-slate-900,
+.studyos-glass .bg-slate-800,
+.studyos-glass .bg-slate-700,
+.studyos-glass [class*="bg-slate-950/"],
+.studyos-glass [class*="bg-slate-900/"],
+.studyos-glass [class*="bg-slate-800/"] {
+  background-color: color-mix(in srgb, var(--card) 86%, transparent) !important;
+  color: var(--card-foreground) !important;
+}
+
+.studyos-glass .text-white,
+.studyos-glass .text-slate-100,
+.studyos-glass .text-slate-200,
+.studyos-glass .text-slate-300 {
+  color: var(--foreground) !important;
+}
+
+.studyos-glass .text-slate-400,
+.studyos-glass .text-slate-500,
+.studyos-glass .text-slate-600 {
+  color: var(--muted-foreground) !important;
+}
+
+.studyos-glass .border-slate-700,
+.studyos-glass .border-slate-600,
+.studyos-glass [class*="border-slate-700/"],
+.studyos-glass [class*="border-purple-900/"] {
+  border-color: var(--border) !important;
+}
+
+.studyos-glass .bg-purple-600,
+.studyos-glass .bg-purple-500,
+.studyos-glass .bg-indigo-600 {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+.studyos-glass .hover\:bg-purple-700:hover,
+.studyos-glass .hover\:bg-purple-600:hover {
+  background-color: color-mix(in srgb, var(--primary) 86%, #000) !important;
+}
+
+.studyos-glass .text-purple-500,
+.studyos-glass .text-purple-400,
+.studyos-glass .text-indigo-400 {
+  color: var(--primary) !important;
+}
+
+.studyos-glass .bg-purple-500\/20,
+.studyos-glass .bg-purple-600\/20 {
+  background-color: color-mix(in srgb, var(--primary) 14%, transparent) !important;
+}
+
+.studyos-glass .from-purple-400,
+.studyos-glass .from-purple-600,
+.studyos-glass .to-purple-600,
+.studyos-glass .to-purple-800,
+.studyos-glass .via-purple-950,
+.studyos-glass .to-slate-950,
+.studyos-glass .from-slate-950 {
+  --tw-gradient-from: var(--primary) !important;
+  --tw-gradient-to: var(--background) !important;
+}
+
+.studyos-glass .bg-gradient-to-br,
+.studyos-glass .bg-gradient-to-r {
+  background-image: linear-gradient(135deg, var(--card), var(--background)) !important;
+}
+
+.studyos-glass .bg-red-500,
+.studyos-glass .text-red-400 {
+  background-color: var(--destructive) !important;
+  color: var(--destructive-foreground) !important;
+}
+
+/* Theme-specific background art — each theme sets both solid bg-color AND gradient bg-image */
+.studyos-glass:root,
+html[data-theme="glassmorph-light"] {
+  background-color: #FAFAFB;
+  background-image: linear-gradient(180deg, #FAFAFB 0%, #F5F4FA 100%);
+}
+
+html[data-theme="dark-neon"] {
+  background-color: #0A0C16;
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139,124,246,0.15) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(57,214,232,0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 30% at 20% 90%, rgba(240,112,138,0.08) 0%, transparent 50%),
+    linear-gradient(180deg, #0A0C16 0%, #0F1220 100%);
+}
+
+html[data-theme="sky-golden-hour"] {
+  background-color: #FDF5E6;
+  background-image: 
+    radial-gradient(ellipse 60% 40% at 85% 15%, rgba(255,215,120,0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 75% 85%, rgba(255,180,80,0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 35% at 25% 90%, rgba(255,200,100,0.12) 0%, transparent 55%),
+    linear-gradient(180deg, #FFF8ED 0%, #F5E6C8 50%, #E8D4B0 100%);
+}
+
+html[data-theme="sky-morning"] {
+  background-color: #E8F4FD;
+  background-image: 
+    radial-gradient(ellipse 70% 45% at 50% -10%, rgba(135,206,250,0.25) 0%, transparent 60%),
+    radial-gradient(ellipse 45% 30% at 80% 80%, rgba(173,216,230,0.18) 0%, transparent 50%),
+    radial-gradient(ellipse 35% 25% at 15% 75%, rgba(200,225,255,0.15) 0%, transparent 45%),
+    linear-gradient(180deg, #F0F8FF 0%, #D6EAF8 50%, #B8D4E8 100%);
+}
+
+html[data-theme="sky-midnight"] {
+  background-color: #081028;
+  background-image: 
+    radial-gradient(2px 2px at 20% 30%, rgba(255,255,255,0.6) 50%, transparent),
+    radial-gradient(1px 1px at 40% 60%, rgba(255,255,255,0.4) 50%, transparent),
+    radial-gradient(1.5px 1.5px at 65% 25%, rgba(200,220,255,0.5) 50%, transparent),
+    radial-gradient(1px 1px at 85% 45%, rgba(255,255,255,0.35) 50%, transparent),
+    radial-gradient(2px 2px at 10% 80%, rgba(180,200,255,0.45) 50%, transparent),
+    radial-gradient(1px 1px at 55% 75%, rgba(255,255,255,0.3) 50%, transparent),
+    radial-gradient(1.5px 1.5px at 90% 15%, rgba(220,235,255,0.5) 50%, transparent),
+    radial-gradient(ellipse 60% 40% at 50% -10%, rgba(124,158,252,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 80% 90%, rgba(100,140,230,0.08) 0%, transparent 50%),
+    linear-gradient(180deg, #0F1A3A 0%, #081028 50%, #050814 100%);
+}
+
+html[data-theme="sky-dusk"] {
+  background-color: #1A1F2E;
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(91,125,191,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 75% 85%, rgba(70,100,160,0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 30% at 20% 75%, rgba(110,140,180,0.10) 0%, transparent 50%),
+    linear-gradient(180deg, #242C44 0%, #1A1F2E 50%, #141824 100%);
+}
+
+.studyos-glass .container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .studyos-glass .container { padding-left: 1.5rem; padding-right: 1.5rem; }
+}
+
+@media (min-width: 1024px) {
+  .studyos-glass .container { padding-left: 2rem; padding-right: 2rem; max-width: 1280px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation-duration: 0.01ms !important; }
+}
+
+/* Smooth theme transitions and interactive animations */
+@media (prefers-reduced-motion: no-preference) {
+  * {
+    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease;
+  }
+
+  .studyos-glass .glass,
+  .studyos-glass .glass-panel,
+  .studyos-glass .glass-strong,
+  .studyos-glass [data-slot="card"],
+  .studyos-glass [data-slot="sidebar"],
+  .studyos-glass [data-slot="popover-content"] {
+    transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease;
+  }
+
+  .studyos-glass button:not(:disabled):hover,
+  .studyos-glass [role="button"]:hover,
+  .studyos-glass a:hover {
+    transform: translateY(-1px);
+  }
+
+  .studyos-glass .sidebar-menu-button:hover {
+    transform: translateX(2px);
+  }
+
+  .studyos-glass .dropdown-menu-item:hover {
+    transform: translateX(2px);
+  }
+
+  /* Card hover lift */
+  .studyos-glass .glass:hover,
+  .studyos-glass .glass-strong:hover,
+  .studyos-glass [data-slot="card"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+
+  /* Page enter animation */
+  .page-enter {
+    animation: fadeSlideIn 0.2s ease-out;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Active nav indicator animation */
+  .studyos-glass .sidebar-menu-button[data-active="true"] {
+    animation: slideIn 0.15s ease-out;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-4px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Theme switch flash prevention */
+  html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+@media (max-width: 640px) {
+  body { overscroll-behavior-y: none; }
+  .studyos-glass [data-slot="sidebar"] { padding-bottom: env(safe-area-inset-bottom); }
+  .studyos-glass main { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
+/* Legacy page compatibility: keep older screens inside the active theme. */
+.studyos-glass .text-blue-500,
+.studyos-glass .text-blue-400,
+.studyos-glass .text-blue-300 { color: var(--primary) !important; }
+.studyos-glass .text-green-500,
+.studyos-glass .text-green-400 { color: var(--primary) !important; }
+.studyos-glass .text-orange-500,
+.studyos-glass .text-orange-400 { color: var(--accent) !important; }
+.studyos-glass .bg-blue-500,
+.studyos-glass .bg-green-500,
+.studyos-glass .bg-orange-500 { background-color: var(--primary) !important; }
+.studyos-glass [class*="bg-blue-500/"],
+.studyos-glass [class*="bg-green-500/"],
+.studyos-glass [class*="bg-orange-500/"] { background-color: color-mix(in srgb, var(--primary) 12%, transparent) !important; }
+.studyos-glass [class*="border-blue-500/"],
+.studyos-glass [class*="border-green-500/"],
+.studyos-glass [class*="border-orange-500/"] { border-color: var(--border) !important; }
+.studyos-glass .bg-blue-900\/20,
+.studyos-glass .bg-green-900\/20,
+.studyos-glass .bg-orange-900\/20 { background-color: color-mix(in srgb, var(--primary) 10%, transparent) !important; }
+.studyos-glass .text-blue-300,
+.studyos-glass .text-green-300,
+.studyos-glass .text-orange-300 { color: var(--foreground) !important; }
