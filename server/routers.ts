@@ -13,7 +13,7 @@ import { aiRouter } from "./routers/ai";
 import { betaRouter } from "./routers/beta";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
-import { extractDocumentText, inferFileType, MAX_UPLOAD_BYTES, DocumentParseError, SUPPORTED_FILE_TYPES, extractYouTubeVideoId, fetchYouTubeTitle, extractYouTubePlaylistVideoIds, isLikelyEducationalVideo } from "./documentParser";
+import { extractDocumentText, inferFileType, MAX_UPLOAD_BYTES, DocumentParseError, SUPPORTED_FILE_TYPES, extractYouTubeVideoId, fetchYouTubeTitle, extractYouTubePlaylistVideoIds, isLikelyEducationalVideo, cleanExtractedText } from "./documentParser";
 import { generateLessonFromContent } from "./routers/lessons";
 
 export const appRouter = router({
@@ -180,6 +180,26 @@ export const appRouter = router({
         youtubeUrl: z.string().url(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const videoId = extractYouTubeVideoId(input.youtubeUrl);
+        if (!videoId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid YouTube URL. Please provide a valid YouTube video link." });
+        }
+
+        const storageKey = `youtube/${videoId}`;
+
+        // Transcript caching: reuse a transcript this user already fetched for
+        // this video instead of contacting YouTube again.
+        const existing = await db.getDocumentByKey(ctx.user.id, storageKey);
+        if (existing && existing.extractedText) {
+          const cachedTitle = existing.filename || `YouTube - ${videoId}`;
+          return {
+            id: existing.id,
+            title: cachedTitle,
+            extractedText: existing.extractedText.slice(0, 60_000),
+            cached: true,
+          };
+        }
+
         let extractedText: string;
         try {
           extractedText = await extractDocumentText(Buffer.from(""), "youtube", input.youtubeUrl);
@@ -193,21 +213,49 @@ export const appRouter = router({
           throw error;
         }
 
-        const videoId = extractYouTubeVideoId(input.youtubeUrl);
-        const title = await fetchYouTubeTitle(input.youtubeUrl);
-        const filename = title || `YouTube - ${videoId}`;
+        const title = (await fetchYouTubeTitle(input.youtubeUrl)) || `YouTube - ${videoId}`;
 
         const doc = await db.createDocument(
           ctx.user.id,
           input.subjectId,
-          filename,
+          title,
           "youtube",
           0,
-          `youtube/${videoId}`,
+          storageKey,
           extractedText
         );
 
-        return { id: doc.id, title: filename, extractedText: extractedText.slice(0, 60_000) };
+        return { id: doc.id, title, extractedText: extractedText.slice(0, 60_000), cached: false };
+      }),
+
+    // Manual transcript fallback: when auto-fetch fails (CAPTCHA / rate limit),
+    // the user can paste the transcript and it flows through the same
+    // transcript -> lesson pipeline.
+    uploadYouTubeTranscript: protectedProcedure
+      .input(z.object({
+        subjectId: z.number(),
+        transcript: z.string().min(1),
+        youtubeUrl: z.string().url().optional(),
+        title: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const videoId = input.youtubeUrl ? extractYouTubeVideoId(input.youtubeUrl) : null;
+        const storageKey = videoId ? `youtube/${videoId}` : `youtube-manual/${Date.now()}`;
+        const cleaned = cleanExtractedText(input.transcript);
+        if (!cleaned) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "The pasted transcript is empty." });
+        }
+        const title = input.title?.trim() || (videoId ? `YouTube - ${videoId}` : "Pasted transcript");
+        const doc = await db.createDocument(
+          ctx.user.id,
+          input.subjectId,
+          title,
+          "youtube",
+          0,
+          storageKey,
+          cleaned
+        );
+        return { id: doc.id, title, extractedText: cleaned.slice(0, 60_000), cached: false, manual: true };
       }),
 
     previewYouTube: protectedProcedure

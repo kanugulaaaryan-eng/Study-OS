@@ -186,8 +186,15 @@ export async function extractTextFromYouTube(url: string): Promise<string> {
     return fullText;
   } catch (error) {
     if (error instanceof DocumentParseError) throw error;
+    const msg = (error as Error).message || "";
+    // YouTube rate-limiting / CAPTCHA challenge from the server IP.
+    if (/captcha|too many requests|rate\s*limit/i.test(msg) || /\b(429|403)\b/.test(msg)) {
+      throw new DocumentParseError(
+        "StudyOS couldn't fetch this video's transcript automatically right now. YouTube is temporarily limiting transcript requests from our server. You can try again later or paste the transcript manually."
+      );
+    }
     throw new DocumentParseError(
-      `Could not fetch YouTube transcript. The video may be private, deleted, or have transcripts disabled. (${(error as Error).message})`
+      `Could not fetch YouTube transcript. The video may be private, deleted, or have transcripts disabled. (${msg})`
     );
   }
 }

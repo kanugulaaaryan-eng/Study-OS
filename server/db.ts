@@ -401,6 +401,27 @@ export async function getDocument(documentId: number, userId: number) {
   return result.length > 0 ? result[0] : null;
 }
 
+/**
+ * Look up a document by its storage key (e.g. `youtube/<videoId>`) for a given
+ * user. Used to reuse a previously-fetched YouTube transcript instead of
+ * calling YouTube again (transcript caching).
+ */
+export async function getDocumentByKey(userId: number, storageKey: string) {
+  const db = await getDb();
+  if (!db) {
+    warnNoDatabaseOnce();
+    for (const doc of memoryDocumentsById.values()) {
+      if (doc.userId === userId && doc.storageKey === storageKey) return doc;
+    }
+    return null;
+  }
+
+  const result = await db.select().from(documents)
+    .where(and(eq(documents.userId, userId), eq(documents.storageKey, storageKey)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
 export async function deleteDocument(documentId: number, userId: number) {
   const database = await getDb();
   if (!database) {
