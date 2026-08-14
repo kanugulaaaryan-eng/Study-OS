@@ -5,25 +5,68 @@ import { ENV } from "../_core/env";
 import * as db from "../db";
 import { TRPCError } from "@trpc/server";
 
-const LESSON_SYSTEM_PROMPT = `You are an expert, endlessly patient educator writing for StudyOS, a second-brain study app. Generate comprehensive lesson content from the provided material so a student can go from confused to confident.
+const LESSON_SYSTEM_PROMPT = `You are an expert, endlessly patient educator writing for StudyOS, a second-brain study app. Your job is to TEACH the concepts in the provided material, not summarize or paraphrase them. A student who is confused before reading your lesson should be confident afterward — able to explain the concept in their own words, not just recall a shorter version of the source's sentences.
+
+"Explain" is not "summarize." "Teach" is not "paraphrase." Never simply restate the source in fewer or simpler words — build the concept up from first principles, layer by layer, adding real teaching moves (definitions, mechanisms, reasons, steps, examples, cause-and-effect) that make the idea click.
+
+Ground everything in the provided source material. Do not invent facts, statistics, or examples that contradict or aren't supported by the source. If you add outside context to aid understanding (a standard analogy, a widely known fact, general background), make sure it is safe, uncontroversial, and clearly serves the source's concept rather than replacing it — never pad length with unsupported claims.
 
 Return ONLY a JSON object (no markdown fences, no commentary) with this exact structure:
 {
   "excerpt": "Brief summary (1-2 sentences)",
-  "beginnerExplanation": "Simple explanation for someone brand new to the topic (2-3 short paragraphs, plain language)",
-  "collegeExplanation": "A more detailed, rigorous explanation for a college-level student (2-3 paragraphs)",
+  "beginnerExplanation": "A first-principles teaching explanation for someone with almost no prior knowledge of the topic. See BEGINNER LEVEL below.",
+  "collegeExplanation": "A rigorous, professor-quality explanation for a college-level student who has basic academic ability but no mastery of this specific topic. See COLLEGE LEVEL below.",
+  "advancedExplanation": "A technically precise explanation for an advanced/expert reader who already knows the basics. See ADVANCED LEVEL below.",
   "keyTerms": ["term1", "term2", ...],
   "analogies": [{"title": "Analogy Title", "body": "Explanation using an everyday comparison"}, ...],
   "takeaways": ["key revision point 1", "key revision point 2", ...],
   "examples": ["real-world example 1", "real-world example 2", ...],
   "misconceptions": ["a common mistake or misconception students have about this topic", ...]
 }
+
+BEGINNER LEVEL (beginnerExplanation, 3-6 short paragraphs, plain language, separated by blank lines):
+Assume almost zero prior knowledge. Write it like a great teacher meeting the student where they are:
+1. Introduce the concept from first principles — start with why it exists / what problem it solves, before naming it formally.
+2. Define any unfamiliar terminology the moment you first use it — never use a term before explaining it.
+3. Explain how the concept works, not just what it is.
+4. If it's a process, break it into clear, ordered steps.
+5. Give at least one concrete, source-grounded example.
+6. Use an analogy only when it genuinely clarifies the idea (a bad analogy is worse than none).
+7. Make cause-and-effect relationships explicit ("X happens, which causes Y, which is why Z").
+8. Briefly connect the concept to related ideas the student may already know.
+9. End important sections with a short "In simple terms:" recap sentence that distills the idea in one line.
+Do not just replace hard words with easy words — the reasoning and teaching structure itself must be more thorough than the source.
+
+COLLEGE LEVEL (collegeExplanation, 3-6 paragraphs):
+Assume basic academic ability but not mastery of this specific topic. Write like a good professor teaching the concept, not a summarizer:
+1. Give a proper, precise definition.
+2. Explain the underlying mechanism — how/why it actually works.
+3. Explain relationships between the concepts involved.
+4. Explain relevant terminology precisely.
+5. If the source contains a formula, explain what it represents, what each variable means, how the variables relate, why the formula is useful, and walk through a worked example when there's enough information in the source to do so accurately.
+6. If the source describes a process, explain the starting point, each step, why each step occurs, and the result.
+7. Give at least one supporting example.
+8. Explain practical or academic applications where the source supports them.
+9. Note important assumptions the concept depends on, when relevant.
+10. Mention a common misunderstanding where useful.
+Do not dumb this down, and do not simply reuse the beginner explanation with harder vocabulary swapped in.
+
+ADVANCED LEVEL (advancedExplanation, 2-5 paragraphs):
+Assume the reader already understands the basics — do not re-teach them. Prioritize:
+- technical precision and exact mechanisms
+- assumptions the concept relies on and when they break down
+- limitations and edge cases
+- broader implications and consequences
+- deeper relationships and connections to adjacent concepts
+This should read as genuinely different in substance from the beginner/college explanations, not a longer version of either. If the source material doesn't contain enough depth to support genuine advanced content, keep this concise and honest about that rather than inventing depth that isn't there.
+
 Always prioritize understanding before testing. Keep language warm and human, never robotic.`;
 
 export type GeneratedLessonContent = {
   excerpt?: string;
   beginnerExplanation?: string;
   collegeExplanation?: string;
+  advancedExplanation?: string;
   keyTerms?: string[];
   analogies?: Array<{ title: string; body: string }>;
   takeaways?: string[];
@@ -73,6 +116,7 @@ export function parseGeneratedLessonContent(raw: string, fallbackTitle: string):
       excerpt: typeof parsed.excerpt === "string" ? parsed.excerpt : fallbackTitle,
       beginnerExplanation: typeof parsed.beginnerExplanation === "string" ? parsed.beginnerExplanation : "",
       collegeExplanation: typeof parsed.collegeExplanation === "string" ? parsed.collegeExplanation : undefined,
+      advancedExplanation: typeof parsed.advancedExplanation === "string" ? parsed.advancedExplanation : undefined,
       keyTerms: Array.isArray(parsed.keyTerms) ? parsed.keyTerms.filter((item): item is string => typeof item === "string") : [],
       analogies: Array.isArray(parsed.analogies) ? parsed.analogies.flatMap((item) => {
         if (!item || typeof item !== "object") return [];
@@ -125,7 +169,7 @@ export async function generateLessonFromContent(params: {
           content: `Please generate lesson content for: "${title}"\n\nStudy material:\n${content.slice(0, 50_000)}`,
         },
       ],
-      maxTokens: 2200,
+      maxTokens: 3400,
     });
 
     const messageContent = response.choices[0]?.message.content;
@@ -144,7 +188,7 @@ export async function generateLessonFromContent(params: {
           ...(ENV.nvidiaNimReasoningModel && ENV.nvidiaNimReasoningModel !== ENV.nvidiaNimModel
             ? { model: ENV.nvidiaNimReasoningModel }
             : {}),
-          maxTokens: 2600,
+          maxTokens: 3600,
         });
         const messageContent = response.choices[0]?.message.content;
         const fallbackContent = typeof messageContent === "string" ? messageContent.trim() : "";
@@ -161,6 +205,7 @@ export async function generateLessonFromContent(params: {
     excerpt: generatedContent.excerpt,
     beginnerExplanation: generatedContent.beginnerExplanation,
     collegeExplanation: generatedContent.collegeExplanation,
+    advancedExplanation: generatedContent.advancedExplanation,
     keyTerms: generatedContent.keyTerms || [],
     analogies: generatedContent.analogies || [],
     takeaways: generatedContent.takeaways || [],
@@ -241,6 +286,7 @@ export const lessonsRouter = router({
       excerpt: z.string().optional(),
       beginnerExplanation: z.string().optional(),
       collegeExplanation: z.string().optional(),
+      advancedExplanation: z.string().optional(),
       keyTerms: z.array(z.string()).optional(),
       analogies: z.array(z.object({ title: z.string(), body: z.string() })).optional(),
       takeaways: z.array(z.string()).optional(),
@@ -254,6 +300,7 @@ export const lessonsRouter = router({
         excerpt: input.excerpt,
         beginnerExplanation: input.beginnerExplanation,
         collegeExplanation: input.collegeExplanation,
+        advancedExplanation: input.advancedExplanation,
         keyTerms: input.keyTerms,
         analogies: input.analogies,
         takeaways: input.takeaways,
