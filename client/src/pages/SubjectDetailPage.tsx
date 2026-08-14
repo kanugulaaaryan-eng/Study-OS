@@ -38,6 +38,7 @@ export default function SubjectDetailPage() {
   const [generatingDocId, setGeneratingDocId] = useState<number | null>(null);
   const [showManualTranscript, setShowManualTranscript] = useState(false);
   const [manualTranscript, setManualTranscript] = useState("");
+  const [isImportingTranscriptFile, setIsImportingTranscriptFile] = useState(false);
 
   const { data: subjects } = trpc.subjects.list.useQuery();
   const { data: documents, refetch: refetchDocuments } = trpc.documents.listBySubject.useQuery({ subjectId: subjectId! }, { enabled: !!subjectId });
@@ -125,6 +126,53 @@ export default function SubjectDetailPage() {
     if (!educational.length) toast.error("I couldn't find study-focused videos in that playlist.");
   };
 
+  // Mobile-friendly YouTube fallback: instead of only pasting, let the user
+  // upload a transcript/document file. Plain text is read client-side; PDF,
+  // DOCX and PPTX reuse the existing document upload + parsing pipeline
+  // (documentParser.ts) rather than duplicating any extraction logic. The
+  // extracted text is dropped into the same transcript textarea so the user
+  // can review it before it flows through uploadYouTubeTranscript into the
+  // existing lesson-generation pipeline.
+  const importTranscriptFile = async (file: File) => {
+    setIsImportingTranscriptFile(true);
+    try {
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith(".txt") || lower.endsWith(".md")) {
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+        setManualTranscript(text);
+        toast.success(`Loaded ${file.name}. Review it below, then save.`);
+        return;
+      }
+
+      const fileType = lower.endsWith(".pdf") ? "pdf" : lower.endsWith(".docx") ? "docx" : lower.endsWith(".pptx") ? "pptx" : null;
+      if (!fileType) {
+        toast.error(`${file.name}: use a .txt transcript, or PDF/DOCX/PPTX.`);
+        return;
+      }
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error(`${file.name} is over the 25 MB limit.`);
+        return;
+      }
+      const result = await uploadDocument.mutateAsync({
+        subjectId: subjectId!,
+        filename: file.name,
+        fileType,
+        fileBase64: await fileToBase64(file),
+      });
+      setManualTranscript(result.extractedText ?? "");
+      toast.success(`Loaded ${file.name}. Review it below, then save.`);
+    } catch {
+      // uploadDocument surfaces its own error toast; FileReader errors fall through silently.
+    } finally {
+      setIsImportingTranscriptFile(false);
+    }
+  };
+
   const processSelectedPlaylist = async () => {
     const chosen = playlistVideos.filter(video => video.id && selectedPlaylist.includes(video.id));
     for (let i = 0; i < chosen.length; i += 4) {
@@ -162,8 +210,36 @@ export default function SubjectDetailPage() {
               <div className="mt-4 flex gap-2"><Input value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} placeholder="Paste a YouTube video or playlist" /><Button onClick={preview} disabled={!youtubeUrl.trim() || previewYouTube.isFetching || uploadYouTube.isPending}>{previewYouTube.isFetching || uploadYouTube.isPending ? <Loader2 className="size-4 animate-spin" /> : "Add"}</Button></div>
               {showManualTranscript && (
                 <div className="mt-4 rounded-xl border border-border/70 bg-muted/40 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">YouTube is rate-limiting transcript fetch right now. Paste the transcript below instead — it flows through the same lesson pipeline.</p>
-                  <Textarea value={manualTranscript} onChange={e => setManualTranscript(e.target.value)} rows={4} placeholder="Paste the video transcript here..." className="mt-2" />
+                  <p className="text-xs font-medium text-muted-foreground">YouTube is rate-limiting transcript fetch right now. Try again, paste the transcript, or upload it as a file — all three flow through the same lesson pipeline.</p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={preview}
+                      disabled={!youtubeUrl.trim() || previewYouTube.isFetching || uploadYouTube.isPending}
+                    >
+                      {previewYouTube.isFetching || uploadYouTube.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                      Retry automatic fetch
+                    </Button>
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent">
+                      <Upload className="size-4" />
+                      {isImportingTranscriptFile ? "Reading file..." : "Upload transcript/document"}
+                      <input
+                        type="file"
+                        accept=".txt,.md,.pdf,.docx,.pptx"
+                        className="hidden"
+                        disabled={isImportingTranscriptFile}
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) importTranscriptFile(file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  <Textarea value={manualTranscript} onChange={e => setManualTranscript(e.target.value)} rows={4} placeholder="Paste the video transcript here, or upload a file above..." className="mt-3" />
                   <Button className="mt-2" size="sm" onClick={() => uploadYouTubeTranscript.mutate({ subjectId, transcript: manualTranscript, youtubeUrl: youtubeUrl.trim() || undefined })} disabled={!manualTranscript.trim() || uploadYouTubeTranscript.isPending}>{uploadYouTubeTranscript.isPending ? "Saving..." : "Save transcript"}</Button>
                 </div>
               )}

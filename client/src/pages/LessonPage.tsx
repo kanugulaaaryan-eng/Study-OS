@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Lightbulb, Zap, Sparkles, Layers, ListChecks, Loader2, MessageSquare, Trash2 } from "lucide-react";
+import { BookOpen, Lightbulb, Zap, Sparkles, Layers, ListChecks, Loader2, MessageSquare, Trash2, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -165,7 +165,7 @@ export default function LessonPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="beginner" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 bg-card">
+          <TabsList className="grid w-full grid-cols-7 bg-card">
             <TabsTrigger value="beginner" className="text-foreground/80">
               <Lightbulb className="w-4 h-4 mr-2" />
               Beginner
@@ -173,6 +173,10 @@ export default function LessonPage() {
             <TabsTrigger value="college" className="text-foreground/80">
               <BookOpen className="w-4 h-4 mr-2" />
               College
+            </TabsTrigger>
+            <TabsTrigger value="advanced" className="text-foreground/80">
+              <GraduationCap className="w-4 h-4 mr-2" />
+              Advanced
             </TabsTrigger>
             <TabsTrigger value="analogies" className="text-foreground/80">
               <Zap className="w-4 h-4 mr-2" />
@@ -210,6 +214,23 @@ export default function LessonPage() {
               <CardContent>
                 <div className="prose prose-invert max-w-none">
                   <p className="text-foreground/80 whitespace-pre-wrap">{lesson.collegeExplanation}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="advanced" className="space-y-4">
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Advanced Explanation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-invert max-w-none">
+                  {lesson.advancedExplanation ? (
+                    <p className="text-foreground/80 whitespace-pre-wrap">{lesson.advancedExplanation}</p>
+                  ) : (
+                    <p className="text-muted-foreground">No advanced explanation available for this lesson yet. Regenerate it to add one.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
