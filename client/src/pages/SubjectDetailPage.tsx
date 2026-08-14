@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
+import { friendlyMutationErrorMessage } from "@/lib/errorMessages";
 import { useEffect, useState } from "react";
 import { BookOpen, Download, FileText, Layers, ListChecks, Loader2, Plus, Sparkles, Trash2, Upload, Youtube, Pencil, StickyNote } from "lucide-react";
 import { toast } from "sonner";
@@ -69,7 +70,7 @@ export default function SubjectDetailPage() {
     onMutate: vars => setGeneratingDocId(vars.documentId),
     onSettled: () => setGeneratingDocId(null),
     onSuccess: data => { refetchLessons(); navigate(`/lesson/${data.lessonId}`); },
-    onError: error => toast.error(error.message),
+    onError: error => toast.error(friendlyMutationErrorMessage(error, "Couldn't generate this lesson. Please try again.")),
   });  const deleteDocument = trpc.documents.delete.useMutation({
     onSuccess: () => { refetchDocuments(); toast.success("Source removed."); },
     onError: error => toast.error(error.message),
