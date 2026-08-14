@@ -444,6 +444,7 @@ export async function createLesson(
     excerpt?: string;
     beginnerExplanation?: string;
     collegeExplanation?: string;
+    advancedExplanation?: string;
     keyTerms?: string[];
     analogies?: Array<{ title: string; body: string }>;
     takeaways?: string[];

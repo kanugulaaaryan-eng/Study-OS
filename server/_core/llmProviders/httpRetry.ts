@@ -4,7 +4,7 @@
 // Timeouts are configurable via env so slow networks / reasoning models
 // (e.g. openai/gpt-oss-120b on NVIDIA NIM) don't abort mid-generation.
 
-const RETRY_MAX_RETRIES = 2;
+const RETRY_MAX_RETRIES = 1;
 const RETRY_BASE_DELAY_MS = 350;
 const RETRY_MAX_DELAY_MS = 3_000;
 
@@ -12,11 +12,16 @@ type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
-// Default overall request timeout (abort). Higher than the original 45s
-// because reasoning models are slow to answer long structured generations.
+// Default overall request timeout (abort) for a single upstream attempt.
+// Render's edge proxy will 502 a request that runs too long, and every
+// retry/fallback layer on top of this timeout multiplies the worst case
+// (see llm.ts / routers/lessons.ts), so this is intentionally bounded
+// rather than generous. Reasoning models that need longer than this on a
+// self-hosted NIM deployment can raise it via LLM_TIMEOUT_MS, but the
+// out-of-the-box default favors a fast, clear failure over a hung request.
 const defaultTimeoutMs = (() => {
   const v = Number(process.env.LLM_TIMEOUT_MS);
-  return Number.isFinite(v) && v > 0 ? v : 120_000;
+  return Number.isFinite(v) && v > 0 ? v : 45_000;
 })();
 
 const defaultConnectTimeoutMs = (() => {

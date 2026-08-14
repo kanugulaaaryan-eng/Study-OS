@@ -136,11 +136,44 @@ export function parseGeneratedLessonContent(raw: string, fallbackTitle: string):
   }
 }
 
+// Hard ceiling on the whole lesson-generation request, independent of
+// whatever retry/backoff the LLM layer does internally. invokeLLM() already
+// retries transient upstream errors and fails over to a second provider on
+// its own (see server/_core/llm.ts), so this function calls it exactly
+// once — a second, duplicate application-level retry here previously
+// stacked on top of that and could push a single request past 10+ minutes
+// in the worst case, which Render's proxy has no patience for and answers
+// with an HTML 502 page instead of waiting. This deadline guarantees
+// documents.generateLesson always resolves with a clean tRPC error well
+// before that happens, so the frontend gets real JSON instead of a 502.
+const LESSON_GENERATION_TIMEOUT_MS = (() => {
+  const v = Number(process.env.LESSON_GENERATION_TIMEOUT_MS);
+  return Number.isFinite(v) && v > 0 ? v : 90_000;
+})();
+
+function withDeadline<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+    promise.then(
+      value => { clearTimeout(timer); resolve(value); },
+      error => { clearTimeout(timer); reject(error); }
+    );
+  });
+}
+
+/** Safe-to-log summary of an LLM/provider failure — never the raw error
+ * object, which can carry response bodies that echo back request headers. */
+function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 /**
  * Calls the LLM to turn raw study material into structured lesson content,
  * then persists it. Shared by lessons.generateFromContent (manual title +
- * pasted content) and documents.upload (auto-generate after a file parses)
- * so the prompt and JSON-parsing fallback only live in one place.
+ * pasted content) and documents.generateLesson / documents.upload
+ * (auto-generate after a file parses) so the prompt and JSON-parsing
+ * fallback only live in one place.
  */
 export async function generateLessonFromContent(params: {
   userId: number;
@@ -150,6 +183,8 @@ export async function generateLessonFromContent(params: {
   documentId?: number;
 }): Promise<{ id: number }> {
   const { userId, subjectId, title, content, documentId } = params;
+  const startedAt = Date.now();
+  const elapsed = () => `${Date.now() - startedAt}ms`;
 
   if (!content.trim()) {
     throw new TRPCError({
@@ -158,50 +193,50 @@ export async function generateLessonFromContent(params: {
     });
   }
 
+  console.log(`[Lesson] request started title="${title}" subjectId=${subjectId}`);
+
   let generatedContent: GeneratedLessonContent;
 
   try {
-    const response = await invokeLLM({
-      messages: [
-        { role: "system", content: LESSON_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `Please generate lesson content for: "${title}"\n\nStudy material:\n${content.slice(0, 50_000)}`,
-        },
-      ],
-      maxTokens: 3400,
-    });
+    console.log(`[Lesson] invoking LLM model=${ENV.nvidiaNimModel || "default"} elapsed=${elapsed()}`);
+
+    const response = await withDeadline(
+      invokeLLM({
+        messages: [
+          { role: "system", content: LESSON_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `Please generate lesson content for: "${title}"\n\nStudy material:\n${content.slice(0, 50_000)}`,
+          },
+        ],
+        maxTokens: 3400,
+      }),
+      LESSON_GENERATION_TIMEOUT_MS,
+      "Lesson generation timed out"
+    );
+
+    console.log(`[Lesson] LLM response received elapsed=${elapsed()}`);
 
     const messageContent = response.choices[0]?.message.content;
     const contentStr = typeof messageContent === "string" ? messageContent.trim() : "";
     if (!contentStr) throw new Error("The lesson model returned an empty response");
+
+    console.log(`[Lesson] response parsing elapsed=${elapsed()}`);
     generatedContent = parseGeneratedLessonContent(contentStr, title);
   } catch (error) {
-    console.warn("Lesson generation primary attempt failed:", error);
-    {
-      try {
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: LESSON_SYSTEM_PROMPT },
-            { role: "user", content: `Generate a clear study lesson for: "${title}"\n\nStudy material:\n${content.slice(0, 45_000)}` },
-          ],
-          ...(ENV.nvidiaNimReasoningModel && ENV.nvidiaNimReasoningModel !== ENV.nvidiaNimModel
-            ? { model: ENV.nvidiaNimReasoningModel }
-            : {}),
-          maxTokens: 3600,
-        });
-        const messageContent = response.choices[0]?.message.content;
-        const fallbackContent = typeof messageContent === "string" ? messageContent.trim() : "";
-        if (!fallbackContent) throw new Error("The fallback lesson model returned an empty response");
-        generatedContent = parseGeneratedLessonContent(fallbackContent, title);
-      } catch (fallbackError) {
-        console.error("Lesson generation fallback failed:", fallbackError);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "StudyOS couldn't turn this source into a lesson right now. The source is saved, so you can retry without uploading it again." });
-      }
-    }
+    console.error(
+      `[Lesson] generation failed provider=${ENV.llmProvider || "nvidia-nim"} model=${ENV.nvidiaNimModel || "default"} elapsed=${elapsed()} error="${describeError(error)}"`
+    );
+    // The source document is already saved independently of this function,
+    // so the user can retry generation without re-uploading anything.
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "StudyOS couldn't generate this lesson right now. Your source is saved, so you can retry without uploading it again.",
+    });
   }
 
-  return db.createLesson(userId, subjectId, title, {
+  console.log(`[Lesson] database save elapsed=${elapsed()}`);
+  const result = await db.createLesson(userId, subjectId, title, {
     excerpt: generatedContent.excerpt,
     beginnerExplanation: generatedContent.beginnerExplanation,
     collegeExplanation: generatedContent.collegeExplanation,
@@ -213,6 +248,9 @@ export async function generateLessonFromContent(params: {
     misconceptions: generatedContent.misconceptions || [],
     documentId,
   });
+  console.log(`[Lesson] request completed lessonId=${result.id} elapsed=${elapsed()}`);
+
+  return result;
 }
 
 export type StudyPackage = {

@@ -29,6 +29,18 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+// Log-only safety net: an uncaught error inside a request handler should
+// already turn into a clean tRPC error response (see routers/lessons.ts),
+// but if something outside that path throws asynchronously, surface it in
+// the Render logs instead of letting the process die silently and restart
+// mid-request, which presents to the client as an HTML 502.
+process.on("uncaughtException", (err) => {
+  console.error("[Server] Uncaught exception:", err instanceof Error ? err.message : err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[Server] Unhandled rejection:", reason instanceof Error ? reason.message : reason);
+});
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
@@ -108,22 +120,41 @@ async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
-  console.log(`[Server] Finding available port starting from ${preferredPort}...`);
-  const port = await findAvailablePort(preferredPort);
+
+  // Render (and most hosts) assign PORT and route platform traffic to
+  // exactly that port — there is nothing else running in the container to
+  // collide with it. Silently binding to a different port if the preferred
+  // one "looks" busy would leave the app listening somewhere the platform
+  // never forwards requests to, which looks like a total outage (every
+  // route 502s, not just this one) with no error in the logs to explain
+  // why. Only do the scan-for-a-free-port convenience in development,
+  // where multiple local dev servers commonly compete for 3000.
+  const port = process.env.NODE_ENV === "production"
+    ? preferredPort
+    : await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   console.log(`[Server] Starting server on port ${port}...`);
+
+  // Render's load balancer keeps idle keep-alive connections open longer
+  // than Node's defaults (5s/60s), which can cause it to reuse a connection
+  // right as Node is about to close it — surfacing as an intermittent 502
+  // unrelated to any application error. Keeping our timeouts comfortably
+  // above Render's documented keep-alive window avoids that race.
+  server.keepAliveTimeout = 121_000;
+  server.headersTimeout = 125_000;
+
   server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
-  
+
   server.on('error', (err) => {
     console.error('[Server] Error:', err);
   });
-  
+
   server.on('listening', () => {
     console.log('[Server] Listening event fired');
     const address = server.address();
