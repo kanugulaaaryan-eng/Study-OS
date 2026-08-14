@@ -4,6 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
@@ -35,6 +36,8 @@ export default function SubjectDetailPage() {
   const [renameLessonId, setRenameLessonId] = useState<number | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [generatingDocId, setGeneratingDocId] = useState<number | null>(null);
+  const [showManualTranscript, setShowManualTranscript] = useState(false);
+  const [manualTranscript, setManualTranscript] = useState("");
 
   const { data: subjects } = trpc.subjects.list.useQuery();
   const { data: documents, refetch: refetchDocuments } = trpc.documents.listBySubject.useQuery({ subjectId: subjectId! }, { enabled: !!subjectId });
@@ -47,7 +50,17 @@ export default function SubjectDetailPage() {
     onError: error => toast.error(error.message),
   });
   const uploadYouTube = trpc.documents.uploadYouTube.useMutation({
-    onSuccess: data => { refetchDocuments(); toast.success(`Saved “${data.title}”.`); },
+    onSuccess: data => { refetchDocuments(); toast.success(`Saved “${data.title}”.`); setShowManualTranscript(false); setManualTranscript(""); },
+    onError: error => {
+      toast.error(error.message);
+      // Offer manual paste when auto-fetch is rate-limited / captcha'd.
+      if (/transcript|youtube|too many requests|captcha/i.test(error.message)) {
+        setShowManualTranscript(true);
+      }
+    },
+  });
+  const uploadYouTubeTranscript = trpc.documents.uploadYouTubeTranscript.useMutation({
+    onSuccess: data => { refetchDocuments(); toast.success(`Saved “${data.title}” from pasted transcript.`); setShowManualTranscript(false); setManualTranscript(""); },
     onError: error => toast.error(error.message),
   });
   const previewYouTube = trpc.documents.previewYouTube.useQuery({ youtubeUrl }, { enabled: false, retry: false });
@@ -147,6 +160,13 @@ export default function SubjectDetailPage() {
               <div className="flex items-center gap-2 font-medium"><Youtube className="size-4 text-primary" /> Learn from YouTube</div>
               <p className="mt-1 text-sm text-muted-foreground">Use lectures, tutorials and educational playlists. Entertainment videos stay out.</p>
               <div className="mt-4 flex gap-2"><Input value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} placeholder="Paste a YouTube video or playlist" /><Button onClick={preview} disabled={!youtubeUrl.trim() || previewYouTube.isFetching || uploadYouTube.isPending}>{previewYouTube.isFetching || uploadYouTube.isPending ? <Loader2 className="size-4 animate-spin" /> : "Add"}</Button></div>
+              {showManualTranscript && (
+                <div className="mt-4 rounded-xl border border-border/70 bg-muted/40 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">YouTube is rate-limiting transcript fetch right now. Paste the transcript below instead — it flows through the same lesson pipeline.</p>
+                  <Textarea value={manualTranscript} onChange={e => setManualTranscript(e.target.value)} rows={4} placeholder="Paste the video transcript here..." className="mt-2" />
+                  <Button className="mt-2" size="sm" onClick={() => uploadYouTubeTranscript.mutate({ subjectId, transcript: manualTranscript, youtubeUrl: youtubeUrl.trim() || undefined })} disabled={!manualTranscript.trim() || uploadYouTubeTranscript.isPending}>{uploadYouTubeTranscript.isPending ? "Saving..." : "Save transcript"}</Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
